@@ -1,1 +1,18 @@
-﻿
+﻿C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\Platforms\Win32\PlatformToolsets\v141_xp\Toolset.targets(39,5): warning MSB8051: Support for targeting Windows XP is deprecated and will not be present in future releases of Visual Studio. Please see https://go.microsoft.com/fwlink/?linkid=2023588 for more information.
+  PlayerType.cpp
+  Playerset.cpp
+  Position.cpp
+  Race.cpp
+  Region.cpp
+  Regionset.cpp
+  Streams.cpp
+  TechType.cpp
+  Unit.cpp
+  UnitCommandType.cpp
+  UnitSizeType.cpp
+  UnitType.cpp
+  Unitset.cpp
+  UpgradeType.cpp
+  WeaponType.cpp
+  UnitCommand.cpp
+  BWAPILIB.vcxproj -> C:\Users\Herden\Documents\scai\Release_Binary\Debug\BWAPILIB.lib

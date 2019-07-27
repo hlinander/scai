@@ -28,4 +28,6 @@ public:
   // Everything below this line is safe to modify.
 private:
 	Model model;
+	time_t start_time;
+	bool debug;
 };

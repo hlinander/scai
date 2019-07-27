@@ -1,63 +1,68 @@
 #include "ExampleAIModule.h"
 
 #include <windows.h>
+#include <ctime>
 
 #include <iostream>
 #include <fstream>
 
-#include <cereal/cereal.hpp>
-#include <cereal/archives/json.hpp>
-#include <cereal/types/string.hpp>
 
 using namespace BWAPI;
 using namespace Filter;
 
+static std::vector<std::string> get_tokens(std::string s) {
+	size_t pos = 0;
+	std::vector<std::string> tokens;
+	while ((pos = s.find("_")) != std::string::npos) {
+		tokens.push_back(s.substr(0, pos));
+		s.erase(0, pos + 1);
+	}
+	tokens.push_back(s);
+	return tokens;
+}
+
 static std::string get_dbname() {
 	std::stringstream ss;
-	ss << "models/" << Broodwar->self()->getName();
+	auto tokens = get_tokens(Broodwar->self()->getName());
+
+	ss << "models/" << tokens[0];
 	return ss.str();
 }
 
-void saveModel(const Model &m) {
+static std::string get_resname() {
 	std::stringstream ss;
-	cereal::JSONOutputArchive ar{ss};
-	ar(cereal::make_nvp("brain", m));
-	std::ofstream out(get_dbname(), std::ios_base::binary);
-	auto serial{ ss.str() };
-	out.write(serial.c_str(), serial.length());
-	out.close();
+	auto tokens = get_tokens(Broodwar->self()->getName());
+	std::cout << "Tokens: ";
+	for (auto& token: tokens) {
+		std::cout << token << " : ";
+	}
+	ss << "results/" << tokens[0] << "_result_" << tokens[1];
+	return ss.str();
 }
 
-bool loadModel(Model &m) {
-	std::ifstream in(get_dbname(), std::ios_base::binary);
-	if (in.is_open()) {
-		cereal::JSONInputArchive ar{ in };
-		ar(m);
-		return true;
-	}
-	return false;
-}
 
-Action getAction(State &s, const Model &m) {
-	float intention[Action::MAX_ACTION] = {};
-	for(int a = 0; a < Action::MAX_ACTION; ++a) {
-		for (int p = 0; p < Param::MAX_PARAM; ++p) {
-			intention[a] += m.params[a][p] * s.data[p];
-		}
-	}
-	float rc = intention[0];
-	int indexMax = 0;
-	for (int i = 1; i < Action::MAX_ACTION; ++i) {
-		if (rc < intention[i]) {
-			rc = intention[i];
-			indexMax = i;
-		}
-	}
-	return static_cast<Action>(indexMax);
+Action getAction(State &s, Model &m) {
+	//float intention[Action::MAX_ACTION] = {};
+	//for(int a = 0; a < Action::MAX_ACTION; ++a) {
+	//	for (int p = 0; p < Param::MAX_PARAM; ++p) {
+	//		intention[a] += m.params[a][p] * s.data[p];
+	//	}
+	//}
+	//float rc = intention[0];
+	//int indexMax = 0;
+	//for (int i = 1; i < Action::MAX_ACTION; ++i) {
+	//	if (rc < intention[i]) {
+	//		rc = intention[i];
+	//		indexMax = i;
+	//	}
+	//}
+	auto action = argMax(m.forward(s));
+	m.grads(s, action);
+	return action;
 }
 
 static State createState(Unit me) {
-	State s = {};
+	State s = State();
 	for(auto u : Broodwar->enemy()->getUnits()) {
 		if (!u->getType().isBuilding()) {
 			s.data[Param::ENEMY_COUNT]++;
@@ -78,6 +83,9 @@ static State createState(Unit me) {
 	s.data[Param::ME_ATTACKED] = static_cast<float>(me->isUnderAttack());
 	s.data[Param::ME_REPAIRED] = static_cast<float>(me->isBeingHealed());
 	s.data[Param::TEAM_MINERALS] = Broodwar->self()->minerals();
+	for (int i = 0; i < Param::MAX_PARAM; ++i) {
+		s.edata(i) = s.data[i];
+	}
 	return s;
 }
 
@@ -149,21 +157,25 @@ std::vector<BWAPI::Unit> filter_enemy(T cb) {
 	return filter_units(Broodwar->enemy()->getUnits(), cb);
 }
 
-static void commitAction(Action a, Unit me) {
+static void commitAction(Action a, Unit me, bool debug) {
 	if (Action::ATTACK == a) {
-		//std::cout << "MY QUEST IS TO ATTACK" << std::endl;
-		auto enemyUnits{ filter_enemy([](auto u) {
-			return !u->getType().isBuilding();
-		})};
-		auto target = find_max(enemyUnits, [](Unit left, Unit right) {
-			return left->getHitPoints() < right->getHitPoints();
-		});
+		if(debug)
+			std::cout << "MY QUEST IS TO ATTACK" << std::endl;
+		//auto enemyUnits{ filter_enemy([](auto u) {
+		//	return !u->getType().isBuilding();
+		//})};
+		//auto target = find_max(enemyUnits, [](Unit left, Unit right) {
+		//	return left->getHitPoints() < right->getHitPoints();
+		//});
+		auto target = me->getClosestUnit(IsEnemy && !IsBuilding);
 		if (target) {
 			me->attack(target);
+			Broodwar->drawLineMap(me->getPosition(), target->getPosition(), Color(255, 0, 0));
 		}
 	}
 	else if (Action::REPAIR == a) {
-		//std::cout << "MY QUEST IS TO REPAIR" << std::endl;
+		if(debug)
+			std::cout << "MY QUEST IS TO REPAIR" << std::endl;
 		auto friendlyUnits{ filter_friendly([](auto u) {
 			return !u->getType().isBuilding();
 		}) };
@@ -172,14 +184,18 @@ static void commitAction(Action a, Unit me) {
 		});
 		if (target) {
 			me->repair(target);
+			Broodwar->drawLineMap(me->getPosition(), target->getPosition(), Color(0, 255, 0));
 		}
 	}
 	else if (Action::FLEE == a) {
-		//std::cout << "MY QUEST IS TO RUN AWAAAAY!!!" << std::endl;
+		if(debug)
+			std::cout << "MY QUEST IS TO RUN AWAAAAY!!!" << std::endl;
 		auto target = me->getClosestUnit(IsEnemy && !IsBuilding);
 		if (target) {
 			auto delta = target->getPosition() - me->getPosition();
-			me->move(delta * (-1));
+			auto move_target = me->getPosition() + delta * (-1);
+			Broodwar->drawLineMap(me->getPosition(), move_target, Color(0, 0, 255));
+			me->move(move_target);
 		}
 	}
 
@@ -188,7 +204,13 @@ static void commitAction(Action a, Unit me) {
 
 void ExampleAIModule::onStart()
 {
-	if(!loadModel(model)) {
+	debug = false;
+	char buf[255] = {};
+	if (0 != GetEnvironmentVariableA("DEBUG", buf, sizeof(buf))) {
+		debug = true;
+	}
+	std::cout << "Loading model at " << get_dbname() << std::endl;
+	if(!loadModel(model, get_dbname())) {
 		Broodwar->sendText("My pants are on my head!");
 	}
 	for (auto &action : model.params) {
@@ -230,7 +252,6 @@ void ExampleAIModule::onStart()
       if ( !p->isObserver() )
         Broodwar << p->getName() << ", playing as " << p->getRace() << std::endl;
     }
-
   }
   else // if this is not a replay
   {
@@ -239,18 +260,20 @@ void ExampleAIModule::onStart()
     if ( Broodwar->enemy() ) // First make sure there is an enemy
       Broodwar << "The matchup is " << Broodwar->self()->getRace() << " vs " << Broodwar->enemy()->getRace() << std::endl;
   }
-
+  start_time = time(NULL);
 }
 
 void ExampleAIModule::onEnd(bool isWinner)
 {
-	char buf[MAX_PATH] = {};
-	if (0 == GetEnvironmentVariableA("resultfile", buf, sizeof(buf)))
-	{
-		return;
-	}
-	std::ofstream out(buf);
-	out << (isWinner ? "1" : "0");
+	//char buf[MAX_PATH] = {};
+	//if (0 != GetEnvironmentVariableA("resultfile", buf, sizeof(buf)))
+	//{
+	//	std::ofstream out(buf);
+	//	out << (isWinner ? "1" : "0");
+	//}
+	model.winner = isWinner;
+	std::cout << "THE END! I AM " << (isWinner ? "WINNER" : "LOOSER") << std::endl;
+	saveModel(model, get_resname());
 }
 
 void ExampleAIModule::onFrame()
@@ -306,7 +329,7 @@ void ExampleAIModule::onFrame()
 		  auto s{ createState(u) };
 		  auto action{ getAction(s, model) };
 
-		  commitAction(action, u);
+		  commitAction(action, u, debug);
 
         // Order workers carrying a resource to return them to the center,
         // otherwise find a mineral patch to harvest.
@@ -396,7 +419,13 @@ void ExampleAIModule::onFrame()
 	  Broodwar->sendText("No my workers are gone. Honorable soduku.");
 	  Broodwar->leaveGame();
   }
-
+  double elapsed = difftime(time(NULL), start_time);
+  std::cout << "@ ELAPSED " << elapsed << std::endl;
+  if (elapsed > 10) {
+	  std::cout << "@@@ Timeout!" << std::endl;
+	  Broodwar->sendText("timeout");
+	  Broodwar->leaveGame();
+  }
 
 }
 
@@ -416,6 +445,9 @@ void ExampleAIModule::onReceiveText(BWAPI::Player player, std::string text)
 {
   // Parse the received text
   Broodwar << player->getName() << " said \"" << text << "\"" << std::endl;
+  if (text == "timeout") {
+	  Broodwar->leaveGame();
+  }
 }
 
 void ExampleAIModule::onPlayerLeft(BWAPI::Player player)
