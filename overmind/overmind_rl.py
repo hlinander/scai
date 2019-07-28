@@ -33,7 +33,7 @@ def get_result_name(model, id):
     return str(model) + "_result_" + str(id)
 
 def run_pair(model1, id1, model2, id2):
-    print("Running pair ", model1, " ", model2)
+    # print("Running pair ", model1, " ", model2)
     game = str(model1) + '_' + str(model2)
     name1 = get_run_name(model1, id1)
     name2 = get_run_name(model2, id2)
@@ -52,7 +52,7 @@ def parse_results(w, results):
     res1file = RESULT_PATH + "/{}".format(w['res_host'])
     res2file = RESULT_PATH + "/{}".format(w['res_join'])
     if os.path.isfile(res1file) and os.path.isfile(res2file):
-        print("@@@@ RESULTS FOUND")
+        # print("@@@@ RESULTS FOUND")
         results.append(w['res_host'])
         results.append(w['res_join'])
         return True
@@ -66,6 +66,8 @@ def do_round(results, generation):
         res['join'].wait()
         if not parse_results(res, results):
             print("PANTS ON MOON")
+        sys.stdout.write(".")
+        sys.stdout.flush()
 #print(os.listdir(GAME_PATH))        
 generation = 0
 while True:
