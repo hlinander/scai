@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+(cd ../openbw/bwapi_nix/build/; make)

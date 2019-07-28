@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+GAMEPATH=../openbw/bwapi_nix/build/bin
+rm $GAMEPATH/results/*
+rm -r rl_gen*
+rm -r $GAMEPATH/maps/replays/ai/*
