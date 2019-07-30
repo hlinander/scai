@@ -37,7 +37,7 @@ def run_pair(model1, id1, model2, id2):
     game = str(model1) + '_' + str(model2)
     name1 = get_run_name(model1, id1)
     name2 = get_run_name(model2, id2)
-    base = ['./BWAPILauncher']
+    base = ['./bwlauncher']
     envhost = {"OPENBW_LAN_MODE": "FILE", "OPENBW_FILE_READ": "fifor", "OPENBW_FILE_WRITE": "fifow"}
     envjoin = {"OPENBW_LAN_MODE": "FILE", "OPENBW_FILE_READ": "fifow", "OPENBW_FILE_WRITE": "fifor"}
     host_process = run(base, name1, envhost)
@@ -70,6 +70,9 @@ def do_round(results, generation):
         sys.stdout.flush()
 #print(os.listdir(GAME_PATH))        
 generation = 0
+if(len(sys.argv) == 2):
+    generation = int(sys.argv[1])
+print(generation)
 while True:
     results = []
     do_round(results, generation)
@@ -79,7 +82,7 @@ while True:
         for resfile in results:
             f.write("results/{}\n".format(resfile))
     model_file = "models/{}".format(MODEL)
-    update_process = run(["./Overmind", "-update", model_file, run_results_list, model_file], "notused", {})
+    update_process = run(["./overmind", "-update", model_file, run_results_list, model_file], "notused", {})
     update_process.wait()
     try:
         shutil.copytree(MODEL_PATH, "rl_gen_%d" % (generation))

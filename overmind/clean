@@ -3,3 +3,4 @@ GAMEPATH=../openbw/bwapi_nix/build/bin
 rm $GAMEPATH/results/*
 rm -r rl_gen*
 rm -r $GAMEPATH/maps/replays/ai/*
+(cd $GAMEPATH; ./overmind -create models/model)

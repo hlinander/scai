@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-python overmind_rl.py
+python overmind_rl.py $1
