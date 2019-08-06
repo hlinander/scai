@@ -9,8 +9,9 @@ import copy
 import shutil
 
 N_CONCURRENT = 1
-N_EPISODES = 10
-MODEL = "model"
+# N_EPISODES = 5
+MODELS = ["model1", "model2", "model3"]
+#MODELS = ["model1"]
 
 GAME_PATH = '../openbw/bwapi_nix/build/bin/'
 MODEL_PATH = os.path.join(GAME_PATH, 'models')
@@ -46,6 +47,8 @@ def run_pair(model1, id1, model2, id2):
         'join': run(base, name2, envjoin),
         'res_host': get_result_name(model1, id1),
         'res_join': get_result_name(model2, id2),
+        'model_host': model1,
+        'model_join': model2
         }
 
 def parse_results(w, results):
@@ -53,37 +56,45 @@ def parse_results(w, results):
     res2file = RESULT_PATH + "/{}".format(w['res_join'])
     if os.path.isfile(res1file) and os.path.isfile(res2file):
         # print("@@@@ RESULTS FOUND")
-        results.append(w['res_host'])
-        results.append(w['res_join'])
+        results[w['model_host']].append(w['res_host'])
+        results[w['model_join']].append(w['res_join'])
         return True
     return False
 
 def do_round(results, generation):
     workers = [ None ] * N_CONCURRENT
-    for i in range(0, N_EPISODES):
-        res = run_pair(MODEL, "g{}a{}".format(generation, i), MODEL, "g{}b{}".format(generation, i))
-        res['host'].wait()
-        res['join'].wait()
-        if not parse_results(res, results):
-            print("PANTS ON MOON")
-        sys.stdout.write(".")
-        sys.stdout.flush()
+    for i in range(0, len(MODELS)):
+        for j in range(i + 1, len(MODELS)):
+            m1 = MODELS[i]
+            m2 = MODELS[j]
+            res = run_pair(m1, "g{}a{}b{}".format(generation, i, j), m2, "g{}b{}a{}".format(generation, i, j))
+            res['host'].wait()
+            res['join'].wait()
+            if not parse_results(res, results):
+                print("PANTS ON MOON")
+            sys.stdout.write(".")
+            sys.stdout.flush()
 #print(os.listdir(GAME_PATH))        
 generation = 0
 if(len(sys.argv) == 2):
     generation = int(sys.argv[1])
 print(generation)
 while True:
-    results = []
+    results = { model:[] for model in MODELS }
     do_round(results, generation)
-    results_list = os.path.join(RESULT_PATH, MODEL + "result_list_{}".format(generation))
-    run_results_list = os.path.join('results', MODEL + "result_list_{}".format(generation))
-    with open(results_list, "w") as f:
-        for resfile in results:
-            f.write("results/{}\n".format(resfile))
-    model_file = "models/{}".format(MODEL)
-    update_process = run(["./overmind", "-update", model_file, run_results_list, model_file], "notused", {})
-    update_process.wait()
+    updaters = []
+    for model in MODELS:
+        results_list = os.path.join(RESULT_PATH, model + "result_list_{}".format(generation))
+        run_results_list = os.path.join('results', model + "result_list_{}".format(generation))
+        with open(results_list, "w") as f:
+            for resfile in results[model]:
+                f.write("results/{}\n".format(resfile))
+        model_file = "models/{}".format(model)
+        update_process = run(["./overmind", "-update", model_file, run_results_list, model_file], "notused", {})
+        #update_process.wait()
+        updaters.append(update_process)
+    for updater in updaters:
+        updater.wait()
     try:
         shutil.copytree(MODEL_PATH, "rl_gen_%d" % (generation))
         # shutil.copytree("../sc/maps/replays/ai", "rl_gen_%d/reps" % (generation))
